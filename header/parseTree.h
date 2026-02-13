@@ -4,10 +4,15 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <variant>
+#include <sstream>
+#include <map>
 
 // Forward declarations
 class Node;
 using NodePtr = std::shared_ptr<Node>;
+class ASTNode;
+using ASTNodePtr = std::shared_ptr<ASTNode>;
 
 //-----------------------------------------------------
 // Base node class for parse tree
@@ -23,80 +28,79 @@ public:
 //-----------------------------------------------------
 enum class NodeType {
     Empty,
-    OperatorAdd,
-    OperatorSub,
-    OperatorMul,
-    OperatorDiv,
-    OperatorPow,
-    OperandNumber,
-    OperandVariable,
+    Operator,
+    Term,
+    Variable,
+    Function
 };
 
 //-----------------------------------------------------
-// Concrete node type: Binary tree node
+// Term structure for polynomial
 //-----------------------------------------------------
-class treeBinaryNode 
-    : public Node
-    , public std::enable_shared_from_this<treeBinaryNode> {
+struct Term {
+    double coeff;
+    int degree;
 
-private:
-    std::weak_ptr<Node> parent;
-    NodePtr left;
-    NodePtr right;
-    NodeType type;
-    std::string value;
+    Term(double c = 0.0, int d = 0) : coeff(c), degree(d) {}
+};
 
-    // Private constructor — only callable by factory
-    explicit treeBinaryNode(const std::string& val, NodeType t = NodeType::Empty)
-        : parent(), left(nullptr), right(nullptr), type(t), value(val) {}
+using Polynomial = std::map<int, double>;
 
+using NodeValue = std::variant<
+    std::monostate,
+    std::string,
+    Term
+>;
+
+class ASTNode : public Node, public std::enable_shared_from_this<ASTNode> {
 public:
-    treeBinaryNode(const treeBinaryNode& other) = default;
-    treeBinaryNode(treeBinaryNode&& other) noexcept = default;
-    treeBinaryNode& operator=(const treeBinaryNode& other) = default;
-    treeBinaryNode& operator=(treeBinaryNode&& other) noexcept = default;
-    ~treeBinaryNode() override = default;
+    NodeType type;
+    NodeValue value;
+    std::vector<NodePtr> children;
+    std::weak_ptr<Node> parent;
 
-    // Factory method (safe shared_ptr creation)
-    static std::shared_ptr<treeBinaryNode> create(
-        const std::string& val,
-        NodeType t = NodeType::Empty)
-    {
-        return std::shared_ptr<treeBinaryNode>(new treeBinaryNode(val, t));
+    static ASTNodePtr create(NodeType nodeType, const NodeValue& nodeValue = NodeValue{}) {
+        ASTNodePtr node(new ASTNode());
+        node->type = nodeType;
+        node->value = nodeValue;
+        return node;
     }
 
-    // Convert tree to string (recursive)
+    void addChild(const NodePtr& child) {
+        children.push_back(child);
+        std::shared_ptr<ASTNode> childNode = std::dynamic_pointer_cast<ASTNode>(child);
+        if (childNode) {
+            childNode->parent = shared_from_this();
+        }
+    }
+
     std::string toString() const override {
         std::ostringstream oss;
-        if (left)  oss << "(" << left->toString() << ")";
-        oss << value;
-        if (right) oss << "(" << right->toString() << ")";
+
+        if (std::holds_alternative<std::string>(value)) {
+            oss << std::get<std::string>(value);
+        } else if (std::holds_alternative<Term>(value)) {
+            const Term& term = std::get<Term>(value);
+            oss << term.coeff << "X^" << term.degree;
+        } else {
+            oss << "_";
+        }
+
+        if (!children.empty()) {
+            oss << "(";
+            for (size_t i = 0; i < children.size(); ++i) {
+                oss << children[i]->toString();
+                if (i + 1 < children.size()) {
+                    oss << ",";
+                }
+            }
+            oss << ")";
+        }
         return oss.str();
     }
 
-    // Create child node (left/right)
-    NodePtr createChild(const std::string& val, NodeType t, bool isLeft) {
-        auto child = treeBinaryNode::create(val, t);
-        child->parent = shared_from_this();
-
-        if (isLeft)
-            left = child;
-        else
-            right = child;
-
-        return child;
-    }
-
-    // Accessors (Getter / Setter)
-    NodePtr getLeft() const { return left; }
-    NodePtr getRight() const { return right; }
-    NodeType getType() const { return type; }
-    std::string getValue() const { return value; }
-
-    void setLeft(NodePtr node) { left = node; }
-    void setRight(NodePtr node) { right = node; }
-    void setType(NodeType t) { type = t; }
-    void setValue(const std::string& v) { value = v; }
+private:
+    ASTNode() : type(NodeType::Empty), value(std::monostate{}) {}
 };
 
 #endif // PARSETREE_H

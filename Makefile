@@ -10,16 +10,16 @@ BIN_DIR = bin
 # Source and Object files
 SOURCES = $(SRC_DIR)/main.cpp \
 		  $(SRC_DIR)/parseTree.cpp \
+		  $(SRC_DIR)/validation.cpp
 
 HEADERS = $(HEADER_DIR)/parseTree.h \
 		  $(HEADER_DIR)/computor.h \
-		  $(HEADER_DIR)/validation.h
 
 OBJECTS = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SOURCES))
 
 # Compiler settings
 CXX = g++
-CXXFLAGS = -Wall -Werror -Wextra -std=c++11 -I$(HEADER_DIR)
+CXXFLAGS = -Wall -Werror -Wextra -std=c++17 -I$(HEADER_DIR)
 LDFLAGS = -lm
 
 # Targets
@@ -28,7 +28,7 @@ all: $(BIN_DIR)/$(NAME)
 $(BIN_DIR)/$(NAME): $(OBJECTS) | $(BIN_DIR)
 	$(CXX) $(OBJECTS) -o $@ $(LDFLAGS)
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp $(HEADERS) | $(OBJ_DIR)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(OBJ_DIR):

@@ -1,30 +1,61 @@
-#include "parseTree.h"
+#include "computor.h"
 
+namespace {
 
-
-void tokenization(const std::string& token, NodePtr& equation)
-{
-    // Placeholder for tokenization logic
-    if(token == "+")
-    {
-
-    }
+bool isNumberToken(const std::string& token) {
+    static const std::regex numberPattern(R"(^\d+(\.\d+)?$)");
+    return std::regex_match(token, numberPattern);
 }
 
-NodePtr parseTree(const std::string& equation_str)
-{
-    NodePtr equation = nullptr;
-    std::regex pattern(R"([0-9]+|[Xx]|[+\-*/]|=|\(|\)|\^)");
-    std::sregex_iterator it(equation_str.begin(), equation_str.end(), pattern);
+bool isOperatorToken(const std::string& token) {
+    return token == "+" || token == "-" || token == "*" || token == "/" || token == "^" || token == "=";
+}
+
+NodePtr makeTokenNode(const std::string& token) {
+    if (isNumberToken(token)) {
+        return ASTNode::create(NodeType::Term, Term(std::stod(token), 0));
+    }
+    if (token == "X" || token == "x") {
+        return ASTNode::create(NodeType::Variable, std::string("X"));
+    }
+    if (isOperatorToken(token)) {
+        return ASTNode::create(NodeType::Operator, token);
+    }
+    if (std::isalpha(static_cast<unsigned char>(token[0])) != 0) {
+        return ASTNode::create(NodeType::Function, token);
+    }
+    return ASTNode::create(NodeType::Empty);
+}
+
+ASTNodePtr parseSideTokens(const std::string& side) {
+    ASTNodePtr sideNode = ASTNode::create(NodeType::Empty);
+    std::regex pattern(R"(\d+(?:\.\d+)?|[A-Za-z_]+|[+\-*/^()]|=)");
+    std::sregex_iterator it(side.begin(), side.end(), pattern);
     std::sregex_iterator end;
 
     while (it != end) {
-        std::cout << "Token: " << it->str() << std::endl;
-        tokenization(it->str(), equation);
+        sideNode->addChild(makeTokenNode(it->str()));
         ++it;
     }
+    return sideNode;
+}
 
-    std::cout << "Parsing equation: " << equation_str << std::endl;
-    // For demonstration, return a nullptr
-    return equation;
+} // namespace
+
+NodePtr parseTree(const std::string& equation_str)
+{
+    ASTNodePtr root = ASTNode::create(NodeType::Operator, std::string("="));
+
+    size_t equalPos = equation_str.find('=');
+    if (equalPos == std::string::npos) {
+        root->addChild(parseSideTokens(equation_str));
+        return root;
+    }
+
+    std::string left = equation_str.substr(0, equalPos);
+    std::string right = equation_str.substr(equalPos + 1);
+
+    root->addChild(parseSideTokens(left));
+    root->addChild(parseSideTokens(right));
+    return root;
 }
